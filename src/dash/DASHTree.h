@@ -93,7 +93,7 @@ namespace dash
 
     struct Representation
     {
-      Representation() :timescale_(0), duration_(0), bandwidth_(0), samplingRate_(0), width_(0), height_(0),
+      Representation() :timescale_(0), duration_(0), segment_duration_(0), bandwidth_(0), samplingRate_(0), width_(0), height_(0),
         aspect_(1.0f), fpsRate_(0), fpsScale_(1), channelCount_(0), flags_(0), indexRangeMin_(0), indexRangeMax_(0){};
       std::string url_;
       std::string id;
@@ -118,7 +118,7 @@ namespace dash
       uint8_t channelCount_;
       SegmentTemplate segtpl_;
       //SegmentList
-      uint32_t duration_, timescale_;
+      uint32_t duration_, timescale_, segment_duration_;
       Segment initialization_;
       SPINCACHE<Segment> segments_;
       const Segment *get_initialization()const { return (flags_ & INITIALIZATION) ? &initialization_ : 0; };
@@ -143,10 +143,10 @@ namespace dash
 
     struct AdaptationSet
     {
-      AdaptationSet() :type_(NOTYPE), timescale_(0), startPTS_(0){ language_ = "unk"; };
+      AdaptationSet() :type_(NOTYPE), timescale_(0), segment_duration_(0), startPTS_(0){ language_ = "unk"; };
       ~AdaptationSet(){ for (std::vector<Representation* >::const_iterator b(repesentations_.begin()), e(repesentations_.end()); b != e; ++b) delete *b; };
       StreamType type_;
-      uint32_t timescale_;
+      uint32_t timescale_, segment_duration_;
       uint64_t startPTS_;
       std::string language_;
       std::string mimeType_;
@@ -178,6 +178,7 @@ namespace dash
     uint32_t segcount_;
     double overallSeconds_;
     uint64_t stream_start_, live_start_, publish_time_, base_time_;
+    bool is_live_;
     double minPresentationOffset;
 
     uint32_t bandwidth_;
