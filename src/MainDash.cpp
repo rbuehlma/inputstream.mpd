@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <sstream>
+#include <cmath>
+#include <limits>
 
 #include "xbmc_addon_types.h"
 #include "libXBMC_addon.h"
@@ -1093,7 +1095,7 @@ void Session::BeginFragment(AP4_UI32 streamId)
 void Session::EndFragment(AP4_UI32 streamId)
 {
   STREAM *s(streams_[streamId - 1]);
-  dashtree_.SetFragmentDuration(s->stream_.getAdaptationSet(), s->stream_.getRepresentation(), s->stream_.getSegmentPos(), s->reader_->GetFragmentDuration());
+  dashtree_.SetSegmentDuration(s->stream_.getAdaptationSet(), s->stream_.getRepresentation(), s->stream_.getSegmentPos(), s->reader_->PTS() * 1000);
 }
 
 /***************************  Interface *********************************/
@@ -1257,7 +1259,7 @@ extern "C" {
     caps.m_supportsIDemux = true;
     caps.m_supportsIPosTime = false;
     caps.m_supportsIDisplayTime = true;
-    caps.m_supportsSeek = session && !session->IsLive();
+    caps.m_supportsSeek = true;
     caps.m_supportsPause = caps.m_supportsSeek;
     return caps;
   }
@@ -1387,6 +1389,8 @@ extern "C" {
   {
   }
 
+  double dts_offset = std::numeric_limits<double>::quiet_NaN();
+
   DemuxPacket* __cdecl DemuxRead(void)
   {
     if (!session)
@@ -1406,8 +1410,11 @@ extern "C" {
     {
       const AP4_Sample &s(sr->Sample());
       DemuxPacket *p = ipsh->AllocateDemuxPacket(sr->GetSampleDataSize());
-      p->dts = sr->DTS() * 1000000;
-      p->pts = sr->PTS() * 1000000;
+      if (std::isnan(dts_offset)) {
+        dts_offset = sr->DTS();
+      }
+      p->dts = (sr->DTS() - dts_offset) * 1000000;
+      p->pts = (sr->PTS() - dts_offset) * 1000000;
       p->duration = sr->GetDuration() * 1000000;
       p->iStreamId = sr->GetStreamId();
       p->iGroupId = 0;
@@ -1424,12 +1431,16 @@ extern "C" {
 
   bool DemuxSeekTime(int time, bool backwards, double *startpts)
   {
-    if (!session)
+    if (!session || std::isnan(dts_offset))
       return false;
 
     xbmc->Log(ADDON::LOG_INFO, "DemuxSeekTime (%d)", time);
 
-    return session->SeekTime(static_cast<double>(time)*0.001f, 0, !backwards);
+    bool ret = session->SeekTime(static_cast<double>(time)*0.001f + dts_offset, 0, !backwards);
+    if (ret) {
+      dts_offset = std::numeric_limits<double>::quiet_NaN();
+    }
+    return ret;
   }
 
   void DemuxSetSpeed(int speed)
@@ -1460,10 +1471,10 @@ extern "C" {
 
   int GetTime()
   {
-    if (!session)
+    if (!session || std::isnan(dts_offset))
       return 0;
 
-    return static_cast<int>(session->GetPTS() * 1000);
+    return static_cast<int>((session->GetPTS() - dts_offset) * 1000);
   }
 
   bool CanPauseStream(void)
@@ -1473,7 +1484,7 @@ extern "C" {
 
   bool CanSeekStream(void)
   {
-    return session && !session->IsLive();
+    return true;
   }
 
   bool PosTime(int)

@@ -1049,7 +1049,7 @@ void DASHTree::set_download_speed(double speed)
     average_download_speed_ = average_download_speed_*0.9 + download_speed_*0.1;
 };
 
-void DASHTree::SetFragmentDuration(const AdaptationSet* adp, const Representation* rep, size_t pos, uint32_t fragmentDuration)
+void DASHTree::SetSegmentDuration(const AdaptationSet* adp, const Representation* rep, size_t pos, uint64_t pts)
 {
   if (!is_live_ /*|| !(rep->flags_ & DASHTree::Representation::TIMELINE)*/)
     return;
@@ -1062,7 +1062,7 @@ void DASHTree::SetFragmentDuration(const AdaptationSet* adp, const Representatio
   {
     if (pos == adp->segment_durations_.data.size() - 1)
     {
-      adpm->segment_durations_.insert(fragmentDuration);
+      adpm->segment_durations_.insert(rep->segment_duration_);
     }
     else
       return;
@@ -1071,9 +1071,28 @@ void DASHTree::SetFragmentDuration(const AdaptationSet* adp, const Representatio
     return;
 
   Segment seg(*(rep->segments_[pos]));
-  seg.range_begin_ += fragmentDuration;
+  seg.range_begin_ += rep->segment_duration_;
   seg.range_end_ += (rep->flags_ & DASHTree::Representation::TIMETEMPLATE)?rep->segment_duration_:1;
-  seg.startPTS_ += fragmentDuration;
+  seg.startPTS_ = pts;
+
+  for (std::vector<Representation*>::iterator b(adpm->repesentations_.begin()), e(adpm->repesentations_.end()); b != e; ++b)
+    (*b)->segments_.insert(seg);
+}
+
+void DASHTree::AttachSegment(const AdaptationSet* adp, const Representation* rep, uint64_t pts)
+{
+  //Get a modifiable adaptationset
+  AdaptationSet *adpm(static_cast<AdaptationSet *>((void*)adp));
+
+  adpm->segment_durations_.insert(rep->segment_duration_);
+
+  int factor = pts / rep->segment_duration_;
+  uint64_t alligned_pts = (uint64_t)rep->segment_duration_ * factor;
+
+  Segment seg;
+  seg.range_begin_ = alligned_pts- rep->segment_duration_;
+  seg.range_end_ = alligned_pts;
+  seg.startPTS_ = alligned_pts;
 
   for (std::vector<Representation*>::iterator b(adpm->repesentations_.begin()), e(adpm->repesentations_.end()); b != e; ++b)
     (*b)->segments_.insert(seg);

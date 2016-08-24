@@ -117,7 +117,7 @@ bool DASHStream::prepare_stream(const DASHTree::AdaptationSet *adp,
 
 bool DASHStream::start_stream(const uint32_t seg_offset, uint16_t width, uint16_t height)
 {
-  if (!~seg_offset && tree_.live_start_ && current_rep_->segments_.data.size()>1)
+  if (!~seg_offset && tree_.is_live_ && current_rep_->segments_.data.size()>1)
   {
     //go at least 12 secs back
     std::int32_t pos(static_cast<int32_t>(current_rep_->segments_.data.size() - 1));
@@ -194,18 +194,23 @@ bool DASHStream::seek_time(double seek_seconds, double current_seconds, bool &ne
   if (!current_rep_)
     return false;
 
-  uint32_t choosen_seg(~0);
-  
   uint64_t sec_in_ts = static_cast<uint64_t>(seek_seconds * current_rep_->timescale_);
-  choosen_seg = 0; //Skip initialization
-  while (choosen_seg < current_rep_->segments_.data.size() && sec_in_ts > current_rep_->get_segment(choosen_seg)->startPTS_)
-    ++choosen_seg;
+  uint32_t choosen_seg(0);
 
-  if (choosen_seg == current_rep_->segments_.data.size())
-    return false;
+  if (tree_.is_live_) {
+    tree_.AttachSegment(current_adp_, current_rep_, sec_in_ts);
+    choosen_seg = current_rep_->segments_.data.size() -1;
+  } else {
 
-  if (choosen_seg && current_rep_->get_segment(choosen_seg)->startPTS_ > sec_in_ts)
-    --choosen_seg;
+    while (choosen_seg < current_rep_->segments_.data.size() && sec_in_ts > current_rep_->get_segment(choosen_seg)->startPTS_)
+      ++choosen_seg;
+
+    if (choosen_seg == current_rep_->segments_.data.size())
+      return false;
+
+    if (choosen_seg && current_rep_->get_segment(choosen_seg)->startPTS_ > sec_in_ts)
+      --choosen_seg;
+  }
 
   const DASHTree::Segment* old_seg(current_seg_);
   if ((current_seg_ = current_rep_->get_segment(choosen_seg)))
