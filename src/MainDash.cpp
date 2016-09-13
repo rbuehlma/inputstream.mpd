@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <sstream>
+#include <cmath>
+#include <limits>
 
 #include "xbmc_addon_types.h"
 #include "libXBMC_addon.h"
@@ -33,6 +35,7 @@
 
 ADDON::CHelper_libXBMC_addon *xbmc = 0;
 std::uint16_t kodiDisplayWidth(0), kodiDisplayHeight(0);
+double dtsOffset = std::numeric_limits<double>::quiet_NaN();
 
 /*******************************************************
 kodi host - interface for decrypter libraries
@@ -1551,8 +1554,11 @@ extern "C" {
     {
       const AP4_Sample &s(sr->Sample());
       DemuxPacket *p = ipsh->AllocateDemuxPacket(sr->GetSampleDataSize());
-      p->dts = sr->DTS() * 1000000;
-      p->pts = sr->PTS() * 1000000;
+      if (std::isnan(dtsOffset)) {
+        dtsOffset = sr->DTS();
+      }
+      p->dts = (sr->DTS() - dtsOffset) * 1000000;
+      p->pts = (sr->PTS() - dtsOffset) * 1000000;
       p->duration = sr->GetDuration() * 1000000;
       p->iStreamId = sr->GetStreamId();
       p->iGroupId = 0;
@@ -1569,12 +1575,12 @@ extern "C" {
 
   bool DemuxSeekTime(int time, bool backwards, double *startpts)
   {
-    if (!session)
+    if (!session || std::isnan(dtsOffset))
       return false;
 
     xbmc->Log(ADDON::LOG_INFO, "DemuxSeekTime (%d)", time);
 
-    return session->SeekTime(static_cast<double>(time)*0.001f, 0, !backwards);
+    return session->SeekTime(static_cast<double>(time)*0.001f + dtsOffset, 0, !backwards);
   }
 
   void DemuxSetSpeed(int speed)
@@ -1608,7 +1614,7 @@ extern "C" {
     if (!session)
       return 0;
 
-    return static_cast<int>(session->GetPTS() * 1000);
+    return static_cast<int>((session->GetPTS() - dtsOffset) * 1000);
   }
 
   bool CanPauseStream(void)
