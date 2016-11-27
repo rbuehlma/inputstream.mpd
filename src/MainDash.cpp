@@ -1429,12 +1429,12 @@ extern "C" {
     return NULL;
   }
 
-  bool DemuxSeekTime(int time, bool backwards, double *startpts)
+  bool DemuxSeekTime(double time, bool backwards, double *startpts)
   {
     if (!session || std::isnan(dts_offset))
       return false;
 
-    xbmc->Log(ADDON::LOG_INFO, "DemuxSeekTime (%d)", time);
+    xbmc->Log(ADDON::LOG_INFO, "DemuxSeekTime (%.4lf)", time);
 
     bool ret = session->SeekTime(static_cast<double>(time)*0.001f + dts_offset, 0, !backwards);
     if (ret) {
