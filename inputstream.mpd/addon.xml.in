@@ -5,7 +5,7 @@
   name="InputStream MPEG DASH"
   provider-name="peak3d">
   <requires>
-    <import addon="kodi.inputstream" version="1.0.5"/>
+    <import addon="kodi.inputstream" version="1.0.6"/>
   </requires>
   <extension
     point="kodi.inputstream"
